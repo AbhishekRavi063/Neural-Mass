@@ -60,21 +60,34 @@ def splindle_detection(signal : NDArray,
     return mask_out
 
 def K_complex_detection(signal : NDArray,
-                        sampling_frequency : int = 30) -> NDArray:
-    """Function that return the indexes where a K-Complex occur
-
-    ARGS :
-    -----
-        signal : The signal as 1D array 
-        sampling_frequency : The sampling frequency
-
-    RETURNS:
-    ------
-        A mask of the places where the K-complex occurs
+                        sampling_frequency : int = 1000) -> NDArray:
     """
-
+    Function that returns a mask where a K-Complex occurs.
+    K-complexes are large, slow waves (>0.5s duration, high amplitude).
+    """
+    # 1. Low-pass filter below 5Hz to isolate the slow wave
     sos = butter(10, 5,
                  btype="lowpass",
                  output="sos",
                  fs=sampling_frequency)
     filtered_signal = sosfilt(sos, signal)
+    
+    # 2. Detect peaks that exceed a high amplitude threshold (e.g., 2 standard deviations)
+    threshold = 2.0 * np.std(filtered_signal)
+    
+    mask_out = np.abs(filtered_signal) > threshold
+    
+    # 3. Filter for duration (must stay above threshold for > 0.5s)
+    min_len = int(sampling_frequency * 0.5)
+    true_mask = np.zeros_like(mask_out)
+    
+    count = 0
+    for i in range(len(mask_out)):
+        if mask_out[i]:
+            count += 1
+        else:
+            if count >= min_len:
+                true_mask[i-count:i] = True
+            count = 0
+            
+    return true_mask
