@@ -1,14 +1,37 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
 import numpy as np
+from numpy.typing import NDArray
 
 class Population:
     """
-    Represents a population of neurons (Jansen-Rit unit).
-    Holds local parameters and state.
+    Represents one Jansen-Rit neural mass population.
+
+    The six state variables are:
+    y0, y1, y2: post-synaptic potentials
+    y3, y4, y5: first derivatives of those potentials
     """
-    def __init__(self, N=1000, tau=0.01, A=3.25, B=22.0, a=100.0, b=50.0, C=135.0, v0=6.0, e0=2.5, r=0.56):
-        # Specs from README
+    def __init__(
+        self,
+        N=1000,
+        tau=0.01,
+        A=3.25,
+        B=22.0,
+        a=100.0,
+        b=50.0,
+        C=135.0,
+        v0=6.0,
+        e0=2.5,
+        r=0.56,
+        name="Population",
+        sigma=0.0,
+    ):
         self.N = N
         self.tau = tau
+        self.name = name
+        self.sigma = sigma
         
         # Jansen-Rit specific parameters
         self.A = A
@@ -26,16 +49,17 @@ class Population:
         self.C3 = 0.25 * C
         self.C4 = 0.25 * C
         
-        # State variables [y0, y1, y2, y3, y4, y5]
         self.y = np.zeros(6)
 
     def sigmoid(self, v):
         return (2 * self.e0) / (1 + np.exp(self.r * (self.v0 - v)))
 
-    def compute_dV(self, p_input):
+    def compute_dv(self, p_input: float) -> NDArray[np.float64]:
         """
-        The Jansen-Rit 6-state ODEs.
-        p_input is the input from other populations + noise.
+        Compute the Jansen-Rit six-state derivative for one time step.
+
+        p_input is the external input arriving at this population after network
+        coupling and stochastic drive have already been applied.
         """
         y = self.y
         dy = np.zeros(6)
@@ -52,58 +76,104 @@ class Population:
         
         return dy
 
+    def compute_dV(self, p_input):
+        """Backward-compatible alias for earlier scripts."""
+        return self.compute_dv(p_input)
+
     def update_state(self, dy, dt):
         self.y += dy * dt
+
+    def reset(self):
+        self.y = np.zeros(6)
+
+    def parameters(self):
+        return {
+            "N": self.N,
+            "tau": self.tau,
+            "A": self.A,
+            "B": self.B,
+            "a": self.a,
+            "b": self.b,
+            "C": self.C,
+            "v0": self.v0,
+            "e0": self.e0,
+            "r": self.r,
+            "sigma": self.sigma,
+        }
 
     @property
     def output(self):
         """The output of this population (pyramidal potential)"""
         return self.y[1] - self.y[2]
 
+@dataclass
 class Connection:
     """
-    Represents a directed link from one population to another.
+    Directed coupling from one population to another.
     """
-    def __init__(self, source, target, weight=1.0):
-        self.source = source
-        self.target = target
-        self.weight = weight
+    source: Population
+    target: Population
+    weight: float = 1.0
 
 class ComputationalGraph:
     """
-    Orchestrates the simulation of a network of populations.
+    Orchestrates simulation of a network of neural mass populations.
     """
-    def __init__(self, populations, connections, dt=0.01, Ne=0, Se=0.0, Ni=0, Si=0.0):
-        self.populations = populations
-        self.connections = connections
+    def __init__(
+        self,
+        populations,
+        connections,
+        dt=0.001,
+        input_mean=220.0,
+        input_std=22.0,
+        seed=None,
+        Ne=0,
+        Se=0.0,
+        Ni=0,
+        Si=0.0,
+    ):
+        self.populations = list(populations)
+        self.connections = list(connections)
         self.dt = dt
+        self.input_mean = input_mean
+        self.input_std = input_std
+        self.rng = np.random.default_rng(seed)
         
-        # Network-level trackers (Specs from README)
         self.Ne = Ne  # Excitatory neuron count
         self.Se = Se  # Excitatory state/activity
         self.Ni = Ni  # Inhibitory neuron count
         self.Si = Si  # Inhibitory state/activity
         
     def step(self):
-        # 1. Initialize input accumulators (using a dictionary to map population to input)
         inputs = {p: 0.0 for p in self.populations}
         
-        # 2. Accumulate inputs along connections
         for conn in self.connections:
             inputs[conn.target] += conn.weight * conn.source.output
             
-        # 3. Add background noise (p_input typically includes a constant + noise)
-        # For simplicity, we'll assume a mean input of 220 with standard deviation 22
         for p in self.populations:
-            p_input = inputs[p] + np.random.normal(220, 22)
-            dy = p.compute_dV(p_input)
+            external_drive = self.rng.normal(self.input_mean, self.input_std)
+            population_noise = self.rng.normal(0.0, p.sigma)
+            p_input = inputs[p] + external_drive + population_noise
+            dy = p.compute_dv(p_input)
             p.update_state(dy, self.dt)
 
-    def simulate(self, seconds):
-        steps = int(seconds / self.dt)
+    def reset(self):
+        for p in self.populations:
+            p.reset()
+
+    def simulate(self, seconds=None, steps=None, as_dict=False):
+        if steps is None:
+            if seconds is None:
+                raise ValueError("Provide either seconds or steps.")
+            steps = int(seconds / self.dt)
+        if steps <= 0:
+            raise ValueError("Simulation length must be positive.")
+
         history = []
         for _ in range(steps):
             self.step()
-            # Record the output (EEG-like signal) of the first population
             history.append([p.output for p in self.populations])
-        return np.array(history)
+        signal = np.array(history)
+        if as_dict:
+            return {p.name: signal[:, idx] for idx, p in enumerate(self.populations)}
+        return signal

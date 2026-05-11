@@ -1,0 +1,13 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+
+# Generated reports and plots
+*.png
+
+# Local datasets and archives
+data/
+*.edf
+*.rar
+*.zip

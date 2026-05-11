@@ -1,32 +1,35 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from src.graph import Population, Connection, ComputationalGraph
-from src.event_detection import splindle_detection, K_complex_detection
+from src.event_detection import spindle_detection, K_complex_detection
 
 # 1. SETUP: Create a 2-node graph (Cortex and Thalamus)
 cortex = Population(N=1000)
 thalamus = Population(N=1000)
 
 # Directed edges: cortex <-> thalamus
+# Lowering weights to 10.0 for stability
 conns = [
-    Connection(source=cortex, target=thalamus, weight=50.0),
-    Connection(source=thalamus, target=cortex, weight=50.0)
+    Connection(source=cortex, target=thalamus, weight=10.0),
+    Connection(source=thalamus, target=cortex, weight=10.0)
 ]
 
 # 2. INITIALIZE GRAPH
+# Using a smaller dt (0.001) is critical for Jansen-Rit stability
 graph = ComputationalGraph(
     populations=[cortex, thalamus],
     connections=conns,
-    dt=0.01
+    dt=0.001,
+    seed=42,
 )
 
 # 3. SIMULATE
-print("Running Graph-Based Simulation (3 seconds)...")
-signals = graph.simulate(seconds=3.0)
+print("Running Graph-Based Simulation (1 second)...")
+signals = graph.simulate(seconds=1.0)
 
 # 4. ANALYZE (Cortex signal is at index 0)
 cortex_eeg = signals[:, 0]
-spindles = splindle_detection(cortex_eeg, sampling_frequency=100)
+spindles = spindle_detection(cortex_eeg, sampling_frequency=100)
 k_complexes = K_complex_detection(cortex_eeg, sampling_frequency=100)
 
 print(f"Spindles detected: {np.any(spindles)}")

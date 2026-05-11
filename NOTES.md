@@ -1,7 +1,4 @@
-À FAIRE
-- Ajouter variables
-    - self.dt
-    - self.Ne, Se ... (NDArray)
-- Ajouter fonctions
-- Classe NMM
-    - Classe qui orchestre un peu tout
+TODO
+- Validate the Jansen-Rit equations against a known reference example from the literature.
+- Add a higher-level NMM class only if the graph API becomes too verbose.
+- Add sleep-specific model extensions after the agnostic first layer is stable.
