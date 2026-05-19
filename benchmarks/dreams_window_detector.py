@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 
-from dreams_kcomplex_validation import read_scoring_file, read_signal_txt
+from neural_mass.dreams_io import read_scoring_file, read_signal_txt
 from neural_mass.event_scoring import aggregate_scores, bootstrap_f1_ci, score_events, score_events_onset
 from neural_mass.kcomplex_window_detector import (
     build_window_dataset,

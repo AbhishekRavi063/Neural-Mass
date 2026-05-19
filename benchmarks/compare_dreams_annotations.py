@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from dreams_kcomplex_validation import read_scoring_file
+from neural_mass.dreams_io import read_scoring_file
 from neural_mass.event_scoring import aggregate_scores, score_events, score_events_onset
 
 
