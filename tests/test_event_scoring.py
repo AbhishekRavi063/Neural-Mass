@@ -1,4 +1,4 @@
-from src.event_scoring import aggregate_scores, event_iou, score_events
+from neural_mass.event_scoring import aggregate_scores, event_iou, score_events
 
 
 def test_event_iou_for_partial_overlap():
@@ -25,6 +25,8 @@ def test_score_events_counts_tp_fp_fn():
     assert scores["fn"] == 1
     assert scores["precision"] == 0.5
     assert scores["recall"] == 0.5
+    assert scores["mean_onset_error"] == 0.1
+    assert round(scores["mean_duration_error"], 6) == 0.0
 
 
 def test_aggregate_scores_micro_averages_counts():
@@ -40,3 +42,6 @@ def test_aggregate_scores_micro_averages_counts():
     assert total["tp"] == 2
     assert total["fp"] == 1
     assert total["fn"] == 3
+    assert "mean_iou" in total
+    assert "mean_onset_error" in total
+    assert "mean_duration_error" in total

@@ -1,5 +1,5 @@
-from src.inference import find_best_parameters, run_simulation
-from src.metrics import calculate_correlation
+from neural_mass.inference import find_best_parameters, run_simulation
+from neural_mass.metrics import calculate_correlation
 
 
 def test_run_simulation_is_reproducible_with_seed():

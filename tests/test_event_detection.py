@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from src.event_detection import K_complex_detection, spindle_detection, splindle_detection
-from src.data_loader import generate_realistic_eeg
+from neural_mass.event_detection import K_complex_detection, spindle_detection, splindle_detection
+from neural_mass.data_loader import generate_realistic_eeg
 
 
 def test_spindle_detection_finds_sustained_sigma_burst():

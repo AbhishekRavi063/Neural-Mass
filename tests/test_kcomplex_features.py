@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.kcomplex_features import (
+from neural_mass.kcomplex_features import (
     extract_kcomplex_features,
     generate_kcomplex_candidates,
     generate_multitaper_kcomplex_candidates,

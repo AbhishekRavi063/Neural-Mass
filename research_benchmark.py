@@ -1,15 +1,13 @@
-from dreams_kcomplex_classifier import evaluate_classifier
+from benchmarks.dreams_window_detector import evaluate_window_detector
 
 
-MIN_DREAMS_F1 = 0.58
+MIN_DREAMS_F1 = 0.62
 
 
 def main():
-    _, totals = evaluate_classifier(
+    _, totals = evaluate_window_detector(
         "data/dreams/DatabaseKcomplexes",
-        threshold=0.75,
-        model_name="logistic",
-        candidate_method="hybrid",
+        threshold=0.50,
     )
     print("\nBenchmark gate")
     print(f"- required F1: {MIN_DREAMS_F1:.3f}")
