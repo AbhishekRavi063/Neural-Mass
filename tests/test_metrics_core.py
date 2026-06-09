@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from neural_mass.metrics import (
+from neural_mass.utils.metrics import (
     calculate_correlation,
     calculate_rhythmicity,
     calculate_rmse,

@@ -1,6 +1,6 @@
 import numpy as np
 
-from neural_mass.thalamocortical_fitting import (
+from neural_mass.inference.thalamocortical_fitting import (
     FEATURE_NAMES,
     aggregate_feature_dicts,
     build_condition_summary,

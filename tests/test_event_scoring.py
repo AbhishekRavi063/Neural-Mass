@@ -1,4 +1,4 @@
-from neural_mass.event_scoring import aggregate_scores, event_iou, score_events
+from neural_mass.utils.event_scoring import aggregate_scores, event_iou, score_events
 
 
 def test_event_iou_for_partial_overlap():

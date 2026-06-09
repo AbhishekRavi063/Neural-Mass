@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import welch
 
-from neural_mass.thalamocortical_model import (
+from neural_mass.models.thalamocortical_model import (
     ThalamocorticalModel,
     ThalamocorticalParameters,
     simulate_thalamocortical_sleep,

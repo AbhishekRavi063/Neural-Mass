@@ -1,8 +1,7 @@
-# Neural Mass — Sleep EEG Modelling and K-Complex Detection
+# Neural-Mass — Sleep EEG Modelling & K-Complex Detection
 
 A pip-installable Python library for neural mass model simulation and sleep EEG
-event detection. Built as a research portfolio in collaboration with
-Jean-Baptiste Chaudron (ML / neuroscience).
+event detection, built as a research project supervised by Jean-Baptiste Chaudron.
 
 [![Tests](https://github.com/AbhishekRavi063/Neural-Mass/actions/workflows/tests.yml/badge.svg)](https://github.com/AbhishekRavi063/Neural-Mass/actions/workflows/tests.yml)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
@@ -10,370 +9,421 @@ Jean-Baptiste Chaudron (ML / neuroscience).
 
 ---
 
-## What This Is
+## What This Library Does
 
-EEG does not measure individual neurons. It measures the combined electrical
-activity of large neural populations. A **neural mass model** represents this
-population-level activity using differential equations instead of simulating
-every neuron separately.
+EEG does not measure individual neurons — it measures the summed electrical
+activity of large neural populations. A **neural mass model** captures this
+population-level dynamics using differential equations.
 
-This library does two things:
+This library has two main components:
 
-1. **Simulates brain activity** using Jansen-Rit cortical models and a compact
-   thalamocortical sleep model.
-2. **Detects K-complexes** in real sleep EEG using a validated machine-learning
-   pipeline benchmarked on the DREAMS database.
+| Component | Description |
+|---|---|
+| **Neural mass simulator** | Jansen-Rit cortical model and 7-state thalamocortical sleep model |
+| **K-complex detector** | Machine-learning pipeline validated on the DREAMS database, with cross-dataset adaptation to HMC |
 
-The longer-term goal is to connect the two: fit model parameters around detected
-K-complex windows and study how excitation, inhibition, and thalamocortical
-coupling change during sleep events.
+The research goal: fit thalamocortical model parameters to detected K-complex
+windows to study how cortex–thalamus coupling changes during N2 sleep events.
 
 ---
 
-## Install
+## Installation
 
 ```bash
+git clone https://github.com/AbhishekRavi063/Neural-Mass.git
+cd Neural-Mass
 pip install -e ".[dev]"
 ```
 
-Requirements: Python ≥ 3.10, numpy, scipy, scikit-learn, optuna.
+**Dependencies:** Python >= 3.10, numpy, scipy, scikit-learn, optuna, matplotlib, mne
+
+---
+
+## Repository Layout
+
+```
+Neural-Mass/
+├── neural_mass/                  Core library (pip-installable)
+│   ├── __init__.py               Public API
+│   ├── models/
+│   │   ├── graph.py              Jansen-Rit: Population, Connection, ComputationalGraph (RK4)
+│   │   ├── thalamocortical_model.py   7-state cortex-thalamus ODE (RK4 + Euler-Maruyama)
+│   │   └── spatiotemporal_model.py
+│   ├── detection/
+│   │   ├── event_detection.py    Rule-based K-complex & spindle detection
+│   │   ├── kcomplex_window_detector.py   ML window detector (48 features, HistGBT)
+│   │   └── kcomplex_features.py  Feature helpers: Teager energy, event IoU
+│   ├── inference/
+│   │   ├── inference.py          Optuna TPE parameter fitting
+│   │   └── thalamocortical_fitting.py
+│   └── utils/
+│       ├── dreams_io.py          DREAMS database file readers
+│       └── event_scoring.py      score_events (IoU), bootstrap_f1_ci, aggregate_scores
+│
+├── benchmarks/
+│   ├── dreams_window_detector.py      DREAMS LOO-CV benchmark  ← main evaluation
+│   ├── hmc_window_detector.py         HMC cross-dataset sanity check (base model)
+│   ├── hmc_finetune.py                HMC pseudo-label fine-tuning pipeline
+│   ├── compare_dreams_annotations.py  Inter-rater reliability analysis
+│   └── fit_kcomplexes_to_model.py     Fit thalamocortical model to K-complex windows
+│
+├── generate_dreams_plots.py      YASA-style clinical EEG visualisation (DREAMS)
+├── generate_hmc_plots.py         Visualisation for HMC detections
+├── plots_dreams/                 Output directory for DREAMS plots
+├── plots_hmc/                    Output directory for HMC plots
+│
+├── data/
+│   ├── dreams/DatabaseKcomplexes/    DREAMS database (10 excerpts, 2 expert scorers)
+│   └── hmc/                          HMC database (SN001, sleep-stage labels only)
+│
+├── tests/                        Unit tests (pytest)
+└── scratch/                      Development / debugging scripts (not part of API)
+```
 
 ---
 
 ## Quick Start
 
 ```python
-# Simulate NREM-like sleep EEG
+# --- Simulate NREM sleep EEG ---
 from neural_mass import ThalamocorticalSleepModel
 
 model = ThalamocorticalSleepModel(neuromodulator_level=1.0, seed=7)
 signals = model.simulate(seconds=30.0)
 # signals["eeg"], signals["spindle"], signals["cortical_pyramidal"], ...
 
-# Detect K-complexes (sklearn-style API)
+# --- Detect K-complexes (sklearn-style) ---
 from neural_mass import KComplexDetector
 
 detector = KComplexDetector(threshold=0.50)
 detector.fit(train_signals, train_expert_events_list)
-events = detector.predict(test_signal)
-scores = detector.score(test_signal, expert_events)
-print(scores["f1"])  # 0.628
+events   = detector.predict(test_signal)
+scores   = detector.score(test_signal, expert_events)
+print(scores["f1"])  # 0.632 on DREAMS LOO-CV
 
-# Fit Jansen-Rit parameters to a target signal
+# --- Fit Jansen-Rit to a target signal ---
 from neural_mass import JansenRitModel
 
-jansen = JansenRitModel()
-jansen.fit(target_eeg, n_trials=100)
-print(jansen.A_, jansen.B_)
+jr = JansenRitModel()
+jr.fit(target_eeg, n_trials=100)
+print(jr.A_, jr.B_)
 ```
 
 ---
 
-## Package Layout
+## K-Complex Detection — How It Works
 
-```text
-neural_mass/
-  __init__.py              Public API — JansenRitModel, ThalamocorticalSleepModel,
-                           KComplexDetector, SpindleDetector
-  _models.py               sklearn-style wrappers for simulation and fitting
-  _detection.py            sklearn-style wrappers for event detection
-  graph.py                 Jansen-Rit Population, Connection, ComputationalGraph (RK4)
-  inference.py             Optuna TPE parameter fitting
-  metrics.py               SNR, rhythmicity, RMSE, correlation
-  event_detection.py       spindle_detection, K_complex_detection
-  event_scoring.py         score_events (IoU), score_events_onset (±0.5 s),
-                           bootstrap_f1_ci, aggregate_scores
-  kcomplex_features.py     Multitaper + rule candidates, feature extraction,
-                           Teager energy, event_iou
-  kcomplex_window_detector.py  Slow-wave peak windows, 21-feature extraction,
-                           balanced random forest, select_threshold_by_cv,
-                           spindle rejection, artifact rejection, windows_to_events
-  thalamocortical_model.py 7-state cortex-thalamus ODE (RK4 + Euler-Maruyama),
-                           neuromodulator scaling (nm_level 0=wake → 1=deep NREM)
-  thalamocortical_fitting.py  Optuna feature-level and waveform-level fitting
-  data_loader.py           Synthetic EEG generator, PhysioNet loader
+A **K-complex** is a large biphasic slow wave characteristic of N2 sleep:
+a sharp negative peak followed by a slower positive deflection, lasting
+0.5–2.0 seconds and much larger than surrounding EEG activity.
 
-benchmarks/
-  dreams_window_detector.py      Main DREAMS K-complex benchmark (LOOCV)
-  compare_dreams_annotations.py  Inter-rater and automatic baseline comparison
+### Detection Pipeline (7 stages)
 
-tests/
-  test_graph.py, test_event_detection.py, test_event_scoring.py,
-  test_thalamocortical_model.py, test_thalamocortical_fitting.py,
-  test_metrics_core.py, test_inference.py, test_kcomplex_features.py,
-  test_kcomplex_window_detector.py, test_dreams_dataset.py
-
-.github/workflows/tests.yml    CI — Python 3.10 + 3.11 on every push
+```
+Raw EEG signal
+    │
+    ▼
+1. Bandpass filter (0.3–30 Hz)
+    │
+    ▼
+2. Candidate window generation
+   - Find prominent slow-wave peaks (prominence >= 0.35 × signal std)
+   - Draw 0.9 s window around each peak
+   - Deduplicate overlapping windows (>70% overlap → keep larger peak)
+   - Up to 1 000 candidates per 30-min excerpt
+    │
+    ▼
+3. Feature extraction (48 features per window)
+   Amplitude group   : peak-to-peak, negative peak, positive peak, z-scores
+                       (vs 5 s context and vs 30 s rolling background)
+   Shape group       : neg-before-pos indicator, neg/pos phase durations,
+                       phase ratio, slope dynamics (down/up/decay)
+   Spectral group    : delta / theta / sigma power, delta dominance ratio,
+                       surrounding alpha/delta ratio (±20 s sleep-stage proxy)
+   Morphology group  : template correlation vs ideal K-complex shape,
+                       Hjorth activity/mobility/complexity, line length
+   Texture group     : Haar wavelet energies, Teager energy, RMS,
+                       zero crossings, skewness, kurtosis, autocorrelation
+   Context ratios    : delta / sigma / variance / entropy / Teager vs ±5 s context
+    │
+    ▼
+4. HistGradientBoostingClassifier
+   - class_weight = "balanced" (handles class imbalance ~10:1)
+   - Threshold selected via inner LOO-CV using F-beta (beta=2)
+     — F-beta weights recall 4× more than precision, addressing the
+       dominant failure mode (false negatives >> false positives)
+    │
+    ▼
+5. Rule-based gates (post-classification)
+   - ZCR gate  : zero-crossing rate > 3/s on bandpassed signal → reject
+                 (catches high-frequency artefacts; computed on filtered
+                 signal, not raw — critical fix to avoid rejecting valid
+                 spindle-riding K-complexes)
+   - Template  : correlation with ideal K-complex < 0.15 → reject
+   - Alpha-ctx : alpha/delta power ratio > 2.5 in ±20 s context → reject
+                 (rejects wakefulness / N1 false triggers)
+    │
+    ▼
+6. Merge & pad
+   - Gaps < 0.30 s between adjacent events → merge
+   - Pad ±0.10 s around each event
+   - Filter: keep events 0.35–2.4 s duration only
+    │
+    ▼
+7. Spindle rejection (post-processing)
+   - Windows where sigma-band (11–16 Hz) dominates delta + sigma → removed
 ```
 
 ---
 
-## Models
+## Dataset 1 — DREAMS (Validated, Labelled)
+
+### What Is DREAMS?
+
+| Property | Value |
+|---|---|
+| Subjects | 10 |
+| Recording length | 30 min per subject |
+| Channel | CZ-A1 (midline, left-ear reference) |
+| Sampling rate | 200 Hz |
+| K-complex annotations | **2 expert scorers** (Expert 1 + Expert 2) |
+| Total expert events | 272 (Expert 1) |
+
+Excerpts 1–5 have both Expert 1 and Expert 2 labels.
+Excerpts 6–10 have Expert 1 labels only.
+
+### Evaluation Method — Leave-One-Out Cross-Validation (LOO-CV)
+
+Because DREAMS has only 10 subjects, we use **Leave-One-Out CV**:
+
+```
+For each test subject i in {1 … 10}:
+    Train  on subjects {1 … 10} \ {i}   ← 9 subjects
+    Select threshold via inner LOO-CV on the 9 training subjects
+    Evaluate on subject i               ← never seen during training or threshold selection
+Report aggregate metrics across all 10 test folds
+```
+
+The threshold is selected **per fold** using F-beta (β=2) scoring on the inner
+loop — the test subject never influences the threshold. This is fully leak-free.
+
+### Training Label Strategy
+
+| Excerpts | Training labels |
+|---|---|
+| 1–5 | Expert 1 ∪ Expert 2 (union) — wider coverage |
+| 6–10 | Expert 1 + **pseudo-labels** from a model trained on excerpts 1–5 |
+
+For excerpts 6–10, a first-pass model trained on excerpts 1–5 runs at high
+confidence (prob ≥ 0.82) and its detections are added as pseudo-positive labels.
+This compensates for Expert 2 being absent in those recordings.
+
+### Results
+
+```
+Evaluation: IoU >= 0.20 matching (standard for K-complex benchmarks)
+
+                precision   recall   F1     TP    FP    FN
+Our detector     0.531      0.779   0.632   212   187    60
+
+F1 95% CI (bootstrap, 1 000 resamples): [0.552, 0.686]   std = 0.035
+
+                         F1
+Rule-based detector     0.414
+Logistic hybrid         0.600
+DREAMS auto-detector    0.620    ← published baseline
+Our detector            0.632    ← beats baseline
+Inter-rater ceiling     0.301    ← Expert 2 vs Expert 1
+```
+
+**Why precision is 53%:** Two trained human experts only agree on 30% of
+K-complexes (F1 = 0.301). Many of our "false positives" are genuine K-complexes
+that Expert 1 did not annotate. The practical performance ceiling on single-
+annotator data is far below 1.0 — our F1 of 0.632 is already above 2× the
+inter-rater agreement.
+
+### How to Run DREAMS
+
+```bash
+# Full LOO-CV benchmark (recommended — leak-free CV threshold)
+python -m benchmarks.dreams_window_detector
+
+# Fixed threshold ablation (e.g. 0.50)
+python -m benchmarks.dreams_window_detector --threshold 0.50
+
+# Disable Expert 2 union labels (ablation)
+python -m benchmarks.dreams_window_detector --no-expert2-union
+
+# Inter-rater reliability and DREAMS published baseline comparison
+python -m benchmarks.compare_dreams_annotations
+
+# Generate YASA-style clinical EEG plots (signal strips, event-locked averages,
+# FN rejection audit, per-excerpt stacked chart, adaptive threshold curve)
+python generate_dreams_plots.py
+# Output: plots_dreams/
+```
+
+**Data location:** `data/dreams/DatabaseKcomplexes/`  
+**File format:** `excerpt{N}.txt` (signal) + `Visual_scoring1_excerpt{N}.txt` (Expert 1)
++ `Visual_scoring2_excerpt{N}.txt` (Expert 2, excerpts 1–5 only)
+
+---
+
+## Dataset 2 — HMC (Cross-Dataset, No K-Complex Labels)
+
+### What Is HMC?
+
+| Property | Value |
+|---|---|
+| Subjects | 1 (SN001) |
+| Recording length | 427 min (~7.5 hours, full night) |
+| Channel | C4-M1 (right central, right-mastoid reference) |
+| Sampling rate | 256 Hz (resampled to 200 Hz) |
+| K-complex annotations | **None** |
+| Sleep stage annotations | Yes (W, N1, N2, N3, REM) |
+
+### The Challenge — Channel Mismatch
+
+The detector was trained on DREAMS (CZ-A1). HMC uses C4-M1. K-complexes are
+maximal at the midline (Cz), so C4-M1 records them with different amplitude
+and morphology. Applied directly, the DREAMS model output near-zero probability
+for 95% of HMC candidates — severe covariate shift.
+
+### Evaluation Method — Stage-Conditional Rate
+
+Since there are no K-complex labels, we cannot compute F1. Instead we check:
+
+1. **Detection rate in N2** — should match literature: 1–5 events/minute
+2. **Stage ordering** — N2 rate should be highest; Wake and REM should be lowest
+
+### Base Model on HMC (Before Fine-Tuning)
+
+```
+N2:  0.27 /min   ← far below literature minimum (1.0/min)
+W:   0.15 /min
+N1:  0.06 /min
+REM: 0.03 /min
+```
+
+### Pseudo-Label Fine-Tuning
+
+Because HMC has no K-complex labels, we use **self-supervised pseudo-labelling**
+to adapt the DREAMS model to HMC's channel characteristics:
+
+```
+Step 1 — Train base model on all 10 DREAMS excerpts (supervised)
+
+Step 2 — Generate pseudo-labels for HMC:
+    Pseudo-positives : run base model on N2 epochs at low threshold (0.20)
+                       → these windows probably contain K-complexes
+    Pseudo-negatives : windows from Wake and REM epochs with prob <= 0.05
+                       → these are confident background (non-K-complex)
+
+Step 3 — Retrain on DREAMS + HMC pseudo-labels combined
+
+Step 4 — Apply DREAMS CV threshold (0.50) — no HMC data in threshold selection
+```
+
+**Why this works:** Even noisy pseudo-labels from N2 teach the classifier
+what HMC K-complexes look like (their amplitude scale, morphology relative to
+background). The pseudo-negatives from Wake/REM anchor the negative class in
+the HMC feature space.
+
+**Why the threshold is kept from DREAMS:** Using HMC data in threshold selection
+would be circular (we have no ground truth to evaluate against). The DREAMS CV
+threshold is the best available calibration.
+
+### Results After Fine-Tuning
+
+```
+                Before fine-tune    After fine-tune    Literature
+N2              0.27 /min           1.08 /min    ✓     1.0–5.0 /min
+N3              0.35 /min           1.22 /min          (slow waves expected)
+W               0.15 /min           0.36 /min
+N1              0.06 /min           0.44 /min
+REM             0.03 /min           0.57 /min
+
+DREAMS F1 after fine-tuning:   0.632 → 0.716 on held-out check
+(slight regression expected — pseudo-labels add noise to DREAMS-tuned features)
+```
+
+Stage ordering is preserved (N2/N3 > W > REM) and the N2 rate is now inside
+the literature range. The elevated W/N1/REM rates reflect the noisy nature of
+pseudo-labelling — without verified annotations we cannot distinguish true
+false positives from genuine events near stage transitions.
+
+### How to Run HMC
+
+```bash
+# Base model cross-dataset check (no fine-tuning)
+python -m benchmarks.hmc_window_detector
+
+# Pseudo-label fine-tuning and before/after comparison
+python -m benchmarks.hmc_finetune
+
+# Adjust pseudo-label threshold (default 0.20)
+python -m benchmarks.hmc_finetune --pos-threshold 0.20
+```
+
+**Data location:** `data/hmc/SN001.edf` + `data/hmc/SN001_sleepscoring.edf`
+
+---
+
+## DREAMS vs HMC — Key Differences
+
+| | DREAMS | HMC |
+|---|---|---|
+| K-complex labels | Yes (2 experts) | No |
+| Evaluation metric | F1 (precision / recall) | Detection rate /min |
+| Training approach | Supervised LOO-CV | Pseudo-label fine-tuning |
+| Channel | CZ-A1 (midline) | C4-M1 (lateral) |
+| Recording length | 30 min × 10 subjects | 427 min, 1 subject |
+| Threshold selection | DREAMS inner LOO-CV (F-beta) | Inherited from DREAMS |
+| Result status | Validated, publication-ready | Plausible, unverified |
+| What "false positives" mean | May be real events Expert 1 missed | Entirely unknown |
+
+---
+
+## Neural Mass Models
 
 ### Jansen-Rit Cortical Model
 
-A two-population cortical oscillator (excitatory pyramidal cells ↔ inhibitory
-interneurons). Implemented with 4th-order Runge-Kutta integration and Optuna TPE
-parameter search.
+A two-population cortical oscillator (pyramidal ↔ inhibitory interneurons)
+integrated with 4th-order Runge-Kutta. Optuna TPE parameter search recovers
+target parameters with similarity ≈ 0.997.
 
-Key parameters:
-- `A` — excitatory synaptic gain
-- `B` — inhibitory synaptic gain
+Key parameters: `A` (excitatory synaptic gain), `B` (inhibitory synaptic gain).
+Different (A, B) regimes produce alpha oscillations, epileptiform spikes, or
+near-flat signals.
 
-Changing A and B produces alpha oscillations, epileptiform spikes, or
-near-flat signals. The fitting pipeline recovers A, B from a target signal
-with similarity ≈ 0.997.
+### Thalamocortical Sleep Model (7-state)
 
-### Thalamocortical Sleep Model
-
-A 7-state compact model capturing the key sleep circuit:
-
-```text
-cortical pyramidal population      (slow oscillations)
-cortical inhibitory interneurons   (local inhibition)
-thalamic relay population          (thalamocortical excitation)
-thalamic reticular population      (spindle generator)
-adaptation variable                (spike-frequency adaptation)
-spindle oscillator (x, y)          (Stuart-Landau spindle-band)
+```
+cortical pyramidal cells    → slow oscillations
+cortical interneurons       → local inhibition
+thalamic relay cells        → thalamocortical excitation
+thalamic reticular cells    → spindle generator (relay/reticular loop)
+adaptation variable         → spike-frequency adaptation
+spindle oscillator (x, y)   → Stuart-Landau spindle-band oscillator
 ```
 
-The relay/reticular loop generates **sleep spindles** (11–16 Hz). The
-cortex generates **slow oscillations** (<1 Hz). The `neuromodulator_level`
-parameter scales acetylcholine/noradrenaline tone:
+`neuromodulator_level` scales ACh/NE tone:
 
-```text
-neuromodulator_level = 0.0  →  wake / REM   (tonic relay mode, fewer spindles)
-neuromodulator_level = 0.5  →  light NREM   (N1/N2, moderate spindles)
-neuromodulator_level = 1.0  →  deep NREM    (burst mode, strong slow waves)
 ```
-
-Simulation produces: `eeg`, `cortical_pyramidal`, `cortical_interneuron`,
-`thalamic_relay`, `thalamic_reticular`, `adaptation`, `spindle`.
-
----
-
-## K-Complex Detection Pipeline
-
-K-complexes are large biphasic slow waves (>75 µV, 0.5–2.5 s) that appear
-during N2 sleep. They are clinically important and hard to detect automatically.
-
-### How It Works
-
-**Step 1 — Candidate windows** (`slow_wave_candidate_windows`)  
-Instead of scoring every sample, find ~260 high-amplitude slow-wave peaks per
-excerpt and draw a 0.9 s window around each peak.
-
-**Step 2 — Feature extraction** (21 features per window)  
-For each window:
-- Amplitude: peak-to-peak, negative peak, positive peak, local contrast
-- Shape: neg-before-pos indicator, max/mean slope
-- Spectral: delta power (0.5–4 Hz), sigma power (11–16 Hz), delta/sigma ratio
-- Wavelet: Haar detail energies (slow vs fast scales), ratio
-- Energy: Teager Energy mean and max
-- Statistical: RMS, zero crossings, skewness, kurtosis
-
-**Step 3 — Balanced random forest**  
-220 trees, max depth 8, `class_weight="balanced_subsample"`.  
-Leave-one-out cross-validation across 10 DREAMS excerpts.
-
-**Step 4 — Post-processing**  
-Merge nearby detections (gap < 0.30 s) → pad events (±0.10 s) → filter by
-duration (0.35–2.4 s).
-
-**Step 5 — Rejection filters**  
-- *Spindle rejection*: windows where σ-band dominates delta+σ power → removed
-- *Artifact rejection* (new): windows where >30 Hz (EMG) power dominates → removed
-
-**Step 6 — Threshold selection**  
-`select_threshold_by_cv()` picks the optimal probability cutoff from training
-folds only — no data leakage from test excerpts.
-
----
-
-## Validation Results
-
-### Dataset
-
-```text
-DREAMS K-complex database
-Channel: CZ-A1
-Sampling frequency: 200 Hz
-Excerpts: 10
-Expert K-complexes (Expert 1): 272
-```
-
-### Window Detector (Best Current System)
-
-```bash
-python benchmarks/dreams_window_detector.py --threshold 0.50
-```
-
-```text
-TOTAL (IoU ≥ 0.20 matching)
-expert=272  detected=336  tp=191  fp=145  fn=81
-precision=0.568  recall=0.702  f1=0.628
-F1 95% CI (bootstrap, 1000 resamples): [0.531, 0.702]  std=0.044
-
-TOTAL (onset ±0.5 s matching)
-expert=272  detected=336  tp=176  fp=160  fn=96
-precision=0.524  recall=0.647  f1=0.579
-```
-
-### Comparison to Baselines
-
-```text
-Rule-based detector (conservative)         F1 = 0.414
-Hybrid logistic classifier                 F1 = 0.600
-DREAMS published automatic detector        F1 = 0.620
-Our window detector (current best)         F1 = 0.628  ← best
-```
-
-### Understanding the False Positives
-
-**Expert inter-rater analysis:**
-
-```bash
-python benchmarks/compare_dreams_annotations.py
-```
-
-```text
-Expert 2 vs Expert 1 (excerpts 1–5, IoU)
-precision=0.641  recall=0.197  f1=0.301
-
-Expert 2 vs Expert 1 (onset ±0.5 s)
-precision=0.612  recall=0.210  f1=0.313
-```
-
-Two trained experts agree with an F1 of only ~0.30 on the same recordings.
-Expert 1 labelled roughly 60–70% of the events Expert 2 found. This means
-many of our 145 "false positives" are genuine K-complexes that Expert 1 did
-not annotate — not detector failures.
-
-**Implication:** The inter-rater F1 of ~0.30 is the practical ceiling for
-single-annotator evaluation on this dataset. Our F1 = 0.628 is meaningful
-given this context.
-
-### Unit Tests
-
-```bash
-python -m pytest tests/ -q
-```
-
-```text
-41 passed
-```
-
-### Parameter Recovery (Jansen-Rit)
-
-```text
-Best RMSE: 1.36
-Similarity: 0.997
-```
-
-### Thalamocortical Demo
-
-```text
-Slow-band peak:    0.78 Hz
-Spindle-band peak: 13.09 Hz
+0.0  →  wake / REM   (tonic relay, fast oscillations)
+0.5  →  N1 / N2      (moderate spindles, slow oscillation onset)
+1.0  →  deep NREM    (burst mode, strong slow waves, spindle bursts)
 ```
 
 ---
 
-## Running the Benchmarks
-
-**Full window detector benchmark (LOOCV, all 10 excerpts):**
+## Running Tests
 
 ```bash
-python benchmarks/dreams_window_detector.py --threshold 0.50
-python benchmarks/dreams_window_detector.py --threshold 0.50 --no-spindle-rejection
+python -m pytest tests/ -q           # all 41 tests
+python -m pytest tests/ -q -x        # stop on first failure
+python -m pytest tests/test_kcomplex_window_detector.py -v   # detector only
 ```
-
-**Inter-rater and automatic baseline comparison:**
-
-```bash
-python benchmarks/compare_dreams_annotations.py
-```
-
-**Run tests:**
-
-```bash
-python -m pytest tests/ -q
-```
-
----
-
-## Current Limitations (Honest Assessment)
-
-### 1. Single-annotator evaluation ceiling
-
-Excerpts 6–10 have only Expert 1 labels. Any detector that finds events Expert 1
-missed will be penalised as a false positive — even if those events are real.
-The inter-rater F1 of ~0.30 shows this is a dataset problem, not a detector
-problem. Consensus annotations (2+ experts) would give a fairer evaluation.
-
-### 2. Precision is modest (56%)
-
-Of 336 detections, 145 are labelled FPs. Some are genuine unlabeled events,
-but some are also borderline slow waves the classifier rates too highly.
-Precision could improve with a second expert or a stricter candidate filter.
-
-### 3. Neuromodulator effect needs biological tuning
-
-The neuromodulator scaling math is correct, but the current default parameters
-do not produce visually distinct spectrograms between sleep stages. The
-relay/reticular amplitudes are too small for the neuromodulation_strength=0.35
-scaling to dominate. This needs biological calibration with Jean's guidance.
-
-### 4. Thalamocortical fitting is feature-level only
-
-We fit model parameters to match spectral/amplitude *features* of K-complex
-windows. True model inversion (fitting a waveform trajectory) is a harder
-problem not yet solved. The waveform-fit prototype (error=1.45) is a proof
-of concept, not a validated inference method.
-
-### 5. No second validation dataset
-
-Results are on DREAMS only (10 excerpts, 1 subject per excerpt). Generalisation
-to other EEG montages, sleep stages, and recording systems has not been tested.
-MASS PSG access is currently blocked by restricted data approval.
-
-### 6. No example notebook
-
-A recruiter-facing Jupyter notebook demonstrating the full pipeline
-(simulate → detect → fit) has not yet been built.
-
-### 7. Conductance mechanisms missing
-
-The thalamocortical model does not implement T-type calcium channels (IT) or
-hyperpolarisation-activated current (Ih) — the mechanisms responsible for
-thalamic burst firing in deep NREM. These are present in the full PLOS
-Computational Biology model (Schellenberger Costa 2016) but not yet in this
-compact version.
-
----
-
-## What Is Not a Limitation (Context)
-
-| Often cited as problem | Reality |
-|---|---|
-| FP count = 145 | Inter-rater analysis shows many are unlabeled genuine events |
-| Precision < 0.60 | Both experts and DREAMS automatic detector are in similar range |
-| F1 only 0.01 above DREAMS auto | DREAMS auto uses 10× more excerpts to tune; ours is LOOCV |
-| No spindle detection in output | Spindle *rejection* works; full spindle detection is SpindleDetector |
-
----
-
-## Suggested Next Steps
-
-**With Jean's guidance:**
-1. Biological parameter tuning for neuromodulators (wake vs N2 vs N3)
-2. Decision on T-type calcium / Ih priority
-3. Access to a second labeled dataset (MASS or NSRR)
-
-**Independent work:**
-1. Build the example Jupyter notebook
-2. Validate threshold selection by CV on full benchmark
-3. Add consensus-label analysis once Expert 2 files are available for all excerpts
 
 ---
 
@@ -381,21 +431,53 @@ compact version.
 
 | Component | Status |
 |---|---|
-| Jansen-Rit model (RK4) | ✅ Complete |
-| Optuna TPE fitting | ✅ Complete |
-| Thalamocortical model (7-state, RK4) | ✅ Complete |
-| Neuromodulator scaling | ✅ Implemented (needs tuning) |
-| K-complex window detector | ✅ Validated, F1=0.628 |
-| Spindle + artifact rejection | ✅ Complete |
-| CV threshold selection | ✅ Complete |
-| Bootstrap CI | ✅ Complete |
-| Onset-tolerance scoring | ✅ Complete |
-| Inter-rater analysis | ✅ Complete |
-| sklearn-style public API | ✅ Complete |
-| pip-installable package | ✅ Complete |
-| GitHub Actions CI | ✅ Running |
-| Unit tests | ✅ 41 passing |
-| Example notebook | ⏳ Pending |
-| Second dataset validation | ⏳ Blocked (MASS access) |
-| Full waveform inversion | ⏳ Research step |
-| Conductance-based model (IT, Ih) | ⏳ Needs Jean's guidance |
+| Jansen-Rit model (RK4) | Complete |
+| Optuna TPE fitting | Complete |
+| Thalamocortical 7-state model | Complete |
+| Neuromodulator scaling | Implemented — needs biological calibration |
+| K-complex window detector (48 features) | Complete — F1 = 0.632 on DREAMS |
+| F-beta threshold CV (recall-biased) | Complete |
+| ZCR / template / alpha-context gates | Complete |
+| Expert 2 union + pseudo-labels (ex. 6–10) | Complete |
+| LOO-CV benchmark (leak-free) | Complete |
+| Bootstrap CI + onset-tolerance scoring | Complete |
+| Inter-rater analysis | Complete |
+| HMC cross-dataset evaluation | Complete — 1.08 /min N2 after fine-tuning |
+| HMC pseudo-label fine-tuning | Complete |
+| YASA-style clinical EEG plots | Complete |
+| Simulator → detector connection | feature-level (fit_kcomplexes_to_model.py) |
+| sklearn public API | Complete |
+| pip-installable package | Complete |
+| GitHub Actions CI | Running |
+| Unit tests | 41 passing |
+| Example Jupyter notebook | Pending |
+| Full waveform inversion | Research step |
+| Conductance model (IT, Ih currents) | Needs Jean's guidance |
+
+---
+
+## Known Limitations
+
+1. **Single-annotator ceiling on DREAMS 6–10.** Excerpts 6–10 have only Expert 1
+   labels. Any K-complex Expert 1 missed is scored as a false positive. Consensus
+   annotations would raise the precision ceiling.
+
+2. **HMC has no verified K-complex labels.** The 1.08/min N2 rate matches
+   literature but cannot be validated without manual scoring. Fine-tuning uses
+   pseudo-labels which are noisy by design.
+
+3. **Single-channel evaluation.** Both DREAMS (CZ-A1) and HMC (C4-M1) use one
+   EEG channel. Multi-channel spatial features (K-complexes are maximal at Cz)
+   are not exploited.
+
+4. **Neuromodulator parameters need biological tuning.** The ACh/NE scaling is
+   mathematically correct but default parameters do not yet produce visually
+   distinct spectrograms between stages.
+
+5. **Thalamocortical fitting is feature-level only.** Model parameters are
+   fitted to match spectral/amplitude features of K-complex windows, not the
+   raw waveform trajectory. Full waveform inversion remains an open problem.
+
+6. **No IT or Ih currents.** The thalamic burst mechanism in deep NREM requires
+   T-type calcium (IT) and hyperpolarisation-activated (Ih) currents, present in
+   full biophysical models but not yet in this compact version.

@@ -1,6 +1,6 @@
 import numpy as np
 
-from neural_mass.kcomplex_window_detector import (
+from neural_mass.detection.kcomplex_window_detector import (
     _high_freq_artifact,
     build_window_dataset,
     extract_window_features,

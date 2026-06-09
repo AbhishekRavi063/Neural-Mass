@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from neural_mass.dreams_io import read_scoring_file, read_signal_txt
+from neural_mass.utils.dreams_io import read_scoring_file, read_signal_txt
 
 
 DREAMS_DIR = Path("data/dreams/DatabaseKcomplexes")

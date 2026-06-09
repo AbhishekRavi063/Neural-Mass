@@ -11,11 +11,16 @@ from pathlib import Path
 
 import numpy as np
 
-from neural_mass.dreams_io import read_scoring_file
-from neural_mass.event_scoring import aggregate_scores, score_events, score_events_onset
+from neural_mass.utils.dreams_io import read_scoring_file
+from neural_mass.utils.event_scoring import aggregate_scores, score_events, score_events_onset
 
 
-DREAMS_FOLDER = Path("data/dreams/DatabaseKcomplexes")
+import os as _os
+# Allow override via environment variable so the benchmark works regardless of
+# working directory. Fall back to the legacy relative path for backward compat.
+DREAMS_FOLDER = Path(
+    _os.environ.get("DREAMS_FOLDER", "data/dreams/DatabaseKcomplexes")
+)
 
 
 def score_file_pair(reference_path, detected_path):
@@ -113,13 +118,13 @@ def main():
     print("=" * 60)
 
     second_rows, second_totals_iou, second_totals_onset = evaluate_second_expert()
-    print_rows("\nExpert 2 vs Expert 1 (excerpts 1-5 only, IoU≥0.20):", second_rows)
+    print_rows("\nExpert 2 vs Expert 1 (excerpts 1-5 only, IoU>=0.20):", second_rows)
     print(
         f"\n  TOTAL (IoU)   : precision={second_totals_iou['precision']:.3f}  "
         f"recall={second_totals_iou['recall']:.3f}  f1={second_totals_iou['f1']:.3f}"
     )
     print(
-        f"  TOTAL (onset±0.5s): precision={second_totals_onset['precision']:.3f}  "
+        f"  TOTAL (onset+/-0.5s): precision={second_totals_onset['precision']:.3f}  "
         f"recall={second_totals_onset['recall']:.3f}  f1={second_totals_onset['f1']:.3f}"
     )
 
@@ -130,7 +135,7 @@ def main():
         f"recall={auto_totals_iou['recall']:.3f}  f1={auto_totals_iou['f1']:.3f}"
     )
     print(
-        f"  TOTAL (onset±0.5s): precision={auto_totals_onset['precision']:.3f}  "
+        f"  TOTAL (onset+/-0.5s): precision={auto_totals_onset['precision']:.3f}  "
         f"recall={auto_totals_onset['recall']:.3f}  f1={auto_totals_onset['f1']:.3f}"
     )
 
@@ -151,7 +156,7 @@ def main():
         print(f"    Expert 2 total annotations : {total_e2}")
         print(f"    Expert 2 events not in Expert 1: {total_e2_missed}")
         print(
-            f"    → Expert 1 labelled only {total_e1/(total_e1+total_e2_missed)*100:.0f}% "
+            f"    -> Expert 1 labelled only {total_e1/(total_e1+total_e2_missed)*100:.0f}% "
             f"of events Expert 2 found"
         )
         print(
@@ -165,10 +170,10 @@ def main():
     print("Summary")
     print("=" * 60)
     print(f"  Expert2 vs Expert1 F1 (IoU)       : {second_totals_iou['f1']:.3f}")
-    print(f"  Expert2 vs Expert1 F1 (onset±0.5s): {second_totals_onset['f1']:.3f}")
+    print(f"  Expert2 vs Expert1 F1 (onset+/-0.5s): {second_totals_onset['f1']:.3f}")
     print(f"  DREAMS auto vs Expert1 F1 (IoU)   : {auto_totals_iou['f1']:.3f}")
     print(
-        "\n  Note: Our window detector F1≈0.63 (IoU) exceeds the DREAMS automatic"
+        "\n  Note: Our window detector F1~0.63 (IoU) exceeds the DREAMS automatic"
     )
     print(
         "  baseline and approaches the inter-rater ceiling for this single-annotator dataset."

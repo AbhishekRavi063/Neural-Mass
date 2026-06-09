@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from neural_mass.graph import ComputationalGraph, Connection, Population
+from neural_mass.models.graph import ComputationalGraph, Connection, Population
 
 
 def test_population_output_and_reset():
