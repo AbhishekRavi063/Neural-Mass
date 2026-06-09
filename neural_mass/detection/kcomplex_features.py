@@ -3,6 +3,12 @@ from scipy.stats import kurtosis, skew
 from scipy.signal import butter, sosfiltfilt, welch
 from scipy.signal.windows import dpss
 
+# np.trapz removed in NumPy 2.0; np.trapezoid introduced in NumPy 2.0.
+try:
+    _trapz = np.trapezoid   # NumPy >= 2.0
+except AttributeError:
+    _trapz = np.trapz       # NumPy <  2.0
+
 from neural_mass.detection.event_detection import K_complex_detection
 
 
@@ -276,7 +282,7 @@ def extract_kcomplex_features(signal, event, sfreq):
     derivative = np.diff(segment)
     max_abs_slope = float(np.max(np.abs(derivative))) * sfreq if len(derivative) else 0.0
     mean_abs_slope = float(np.mean(np.abs(derivative))) * sfreq if len(derivative) else 0.0
-    area = float(getattr(np, "trapezoid", np.trapz)(np.abs(segment - np.median(context)), dx=1 / sfreq))
+    area = float(_trapz(np.abs(segment - np.median(context)), dx=1 / sfreq))
 
     low_power = _safe_power(segment, sfreq, 0.5, 5.0)
     delta_power = _safe_power(segment, sfreq, 0.5, 4.0)
