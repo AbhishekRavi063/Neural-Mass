@@ -420,10 +420,44 @@ spindle oscillator (x, y)   → Stuart-Landau spindle-band oscillator
 ## Running Tests
 
 ```bash
-python -m pytest tests/ -q           # all 41 tests
-python -m pytest tests/ -q -x        # stop on first failure
-python -m pytest tests/test_kcomplex_window_detector.py -v   # detector only
+python -m pytest tests/ -q                                    # all tests
+python -m pytest tests/ -q -x                                 # stop on first failure
+python -m pytest tests/test_kcomplex_window_detector.py -v    # detector only
+python -m pytest tests/ -q --tb=short                         # short tracebacks
 ```
+
+**Current status: 95 tests passing.**
+
+### Test Inventory
+
+| File | What it tests |
+|---|---|
+| `test_graph.py` | Jansen-Rit Population, Connection, ComputationalGraph — RK4 integration, signal shape, reproducibility with seed |
+| `test_inference.py` | Optuna TPE parameter search — reproducibility, parameter recovery similarity >= 0.99 |
+| `test_metrics_core.py` | SNR, rhythmicity, RMSE, correlation helpers used in fitting |
+| `test_thalamocortical_model.py` | 7-state thalamocortical ODE — output shape, power spectrum has delta + sigma peaks, neuromodulator effect on slow-wave amplitude |
+| `test_thalamocortical_fitting.py` | Feature extraction for thalamocortical fitting (aggregate_feature_dicts, build_condition_summary), feature names match expected list |
+| `test_spatiotemporal.py` | Spatiotemporal thalamocortical model — multi-node simulation, shape checks |
+| `test_multi_objective_fitting.py` | JansenRitModel and ThalamocorticalSleepModel sklearn-style wrappers — fit/predict/score API |
+| `test_event_detection.py` | Rule-based `K_complex_detection` and `spindle_detection` — returns correct dict fields, does not crash on flat/noisy input |
+| `test_event_scoring.py` | `score_events` (IoU matching), `aggregate_scores`, `bootstrap_f1_ci`, `score_events_onset` — edge cases: empty lists, perfect match, zero overlap |
+| `test_kcomplex_features.py` | `extract_kcomplex_features`, `generate_kcomplex_candidates`, `teager_energy`, `event_iou` — feature vector length, Teager energy on known signal |
+| `test_kcomplex_window_detector.py` | `build_window_dataset`, `extract_window_features`, `label_windows`, `windows_to_events`, `select_threshold_by_cv` — feature vector has correct length (48), threshold selection returns value in grid, no crash on short segments |
+| `test_clinical.py` | `compute_so_pac`, `estimate_thalamic_gating`, `clinical_artifact_filter` — clinical helper functions |
+| `test_dreams_dataset.py` | `read_signal_txt`, `read_scoring_file` — file readers return correct types and shapes (requires data files present) |
+| `test_fixes.py` | Regression tests for the first-round detection fixes: ZCR on bandpassed signal, template correlation gate, alpha-context gate |
+| `test_new_fixes.py` | Regression tests for second-round fixes: F-beta threshold CV, `neg_peak_amplitude_z_rolling` feature present in output, pseudo-label augmentation does not break label shape |
+| `test_final_fixes.py` | Integration: thalamocortical model still runs after fixes, no shape regressions |
+
+### Things Still Needed (Test Gaps)
+
+| Gap | Why it matters |
+|---|---|
+| HMC pipeline end-to-end test | `hmc_finetune.py` has no automated test — only manual run |
+| Pseudo-label stability test | No test verifying pseudo-label augmentation produces expected positive count |
+| Cross-dataset F1 regression test | No automated check that DREAMS F1 >= 0.62 after any code change |
+| DREAMS IO with missing Expert 2 file | `read_union_events` fallback for excerpts 6–10 not explicitly tested |
+| Chunk deduplication test | `build_candidate_windows` chunk+dedup logic in HMC scripts not unit-tested |
 
 ---
 
