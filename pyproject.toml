@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=61"]
-build-backend = "setuptools.backends.legacy:build"
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "neural-mass"
@@ -13,12 +13,12 @@ dependencies = [
     "scipy>=1.10",
     "optuna>=3.0",
     "scikit-learn>=1.2",
-    "matplotlib>=3.6",
-    "mne>=1.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+# Install with: pip install -e ".[dev]"
+# Includes matplotlib (plots), mne (HMC EDF loading), pytest (tests)
+dev = ["pytest", "matplotlib>=3.6", "mne>=1.0"]
 
 [project.urls]
 Repository = "https://github.com/AbhishekRavi063/Neural-Mass"
