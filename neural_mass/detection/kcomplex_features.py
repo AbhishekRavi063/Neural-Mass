@@ -276,7 +276,7 @@ def extract_kcomplex_features(signal, event, sfreq):
     derivative = np.diff(segment)
     max_abs_slope = float(np.max(np.abs(derivative))) * sfreq if len(derivative) else 0.0
     mean_abs_slope = float(np.mean(np.abs(derivative))) * sfreq if len(derivative) else 0.0
-    area = float(np.trapz(np.abs(segment - np.median(context)), dx=1 / sfreq))
+    area = float(getattr(np, "trapezoid", np.trapz)(np.abs(segment - np.median(context)), dx=1 / sfreq))
 
     low_power = _safe_power(segment, sfreq, 0.5, 5.0)
     delta_power = _safe_power(segment, sfreq, 0.5, 4.0)
