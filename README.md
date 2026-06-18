@@ -10,11 +10,20 @@ documentation.
 | [**kcomplex-detector/**](kcomplex-detector) | Machine-learning K-complex detection, validated on DREAMS and stress-tested on HMC | `kcomplex_detector` |
 | [**neural-mass-model/**](neural-mass-model) | Neural mass models (Jansen-Rit, thalamocortical) for simulating EEG and fitting parameters with Optuna | `neural_mass` |
 
-Each project installs and runs on its own:
+Each project installs and runs on its own. Install whichever you need — or both
+into the same environment, where they coexist and can be used together:
 
 ```bash
-pip install -e ./kcomplex-detector ".[dev]"     # detector
-pip install -e ./neural-mass-model ".[dev]"     # simulator
+pip install -e "./kcomplex-detector[dev]"     # detector only
+pip install -e "./neural-mass-model[dev]"     # simulator only
+
+# or both at once:
+pip install -e "./kcomplex-detector[dev]" -e "./neural-mass-model[dev]"
+```
+
+```python
+from kcomplex_detector import KComplexDetector     # project 1
+from neural_mass import ThalamocorticalSleepModel   # project 2
 ```
 
 See each project's own `README.md` for full details, datasets, methods, and
