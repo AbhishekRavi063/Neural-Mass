@@ -8,6 +8,9 @@ dist/
 
 # Generated reports and plots
 *.png
+# ...but keep the curated result figures referenced in the READMEs
+!kcomplex-detector/figures/*.png
+!neural-mass-model/figures/*.png
 
 # Local datasets and archives
 data/

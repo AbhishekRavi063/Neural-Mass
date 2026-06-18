@@ -87,6 +87,25 @@ it is the practical ceiling for this task. A detector scoring 0.632 against one
 expert is therefore agreeing with that expert far more than the two experts
 agree with each other.
 
+**How it compares**
+
+![DREAMS baseline comparison](figures/dreams_baseline_comparison.png)
+
+*Our detector vs the published DREAMS auto-detector and the human inter-rater
+ceiling. (Figures are from a representative run; exact numbers vary slightly
+between runs.)*
+
+**Real detections — true / false positives and misses**
+
+Per Jean's advice, here are actual waveforms, not just metrics. Top row: true
+positives (matched to an expert). Middle row: false positives (the detector
+fired but no expert mark). Bottom row: false negatives (expert-marked
+K-complexes the detector missed.)
+
+![TP / FP / FN waveform gallery](figures/dreams_tp_fp_fn_waveforms.png)
+
+![TP / FP / FN counts per excerpt](figures/dreams_tp_fp_fn_counts.png)
+
 **Run it**
 
 ```bash
@@ -130,6 +149,8 @@ This brought the N2 rate into the expected range. The trade-off is somewhat
 elevated firing in other stages and a small DREAMS regression on a non-rigorous
 fixed-threshold check — expected under cross-channel domain shift. **Treat HMC
 results as plausible, not validated.**
+
+![HMC detection rate per stage, base vs fine-tuned](figures/hmc_rate_comparison.png)
 
 **Run it**
 

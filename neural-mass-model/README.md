@@ -30,6 +30,8 @@ jr.fit(target_eeg, n_trials=100)           # Optuna parameter search
 print(jr.A_, jr.B_)
 ```
 
+![Simulator overview: Jansen-Rit and thalamocortical outputs](figures/simulator_overview.png)
+
 ## Models
 
 - **Jansen-Rit** — classic two-population cortical oscillator (parameters A, B).
