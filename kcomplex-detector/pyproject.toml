@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kcomplex-detector"
+version = "0.1.0"
+description = "Machine-learning K-complex detection for single-channel sleep EEG"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "scikit-learn>=1.2",
+]
+
+[project.optional-dependencies]
+# Install with: pip install -e ".[dev]"
+# matplotlib -> result figures; mne -> HMC EDF loading; pytest -> tests
+dev = ["pytest", "matplotlib>=3.6", "mne>=1.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["kcomplex_detector*"]

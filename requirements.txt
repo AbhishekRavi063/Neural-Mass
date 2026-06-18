@@ -1,7 +1,0 @@
-matplotlib
-mne
-numpy
-optuna
-pytest
-scikit-learn
-scipy
