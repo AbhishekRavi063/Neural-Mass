@@ -189,6 +189,13 @@ kcomplex-detector/
 └── figures/                  saved result plots (plots_dreams, plots_hmc)
 ```
 
+> **Why two similarly-named folders?** The outer `kcomplex-detector/` (hyphen) is
+> the *project* folder — it holds the code plus `pyproject.toml`, `README`, and
+> `tests/`. The inner `kcomplex_detector/` (underscore) is the importable Python
+> *package* — what you get with `import kcomplex_detector`. This is the standard
+> Python layout (e.g. the `scikit-learn` project contains the `sklearn` package).
+> Package names can't contain hyphens, hence the hyphen/underscore split.
+
 ## Data
 
 The DREAMS and HMC raw files are **not** committed (large). Place them under a

@@ -69,6 +69,13 @@ neural-mass-model/
 └── tests/                    unit tests
 ```
 
+> **Why two similarly-named folders?** The outer `neural-mass-model/` (hyphen) is
+> the *project* folder — it holds the code plus `pyproject.toml`, `README`, and
+> `tests/`. The inner `neural_mass/` (underscore) is the importable Python
+> *package* — what you get with `import neural_mass`. This is the standard Python
+> layout (e.g. the `scikit-learn` project contains the `sklearn` package).
+> Package names can't contain hyphens, hence the hyphen/underscore split.
+
 **Note on `signal/`** — the fitting code measures spindle/K-complex *rates* in
 its own simulated output to match observed grapho-element rates. The low-level
 event-detection routines it needs are vendored here as a small self-contained
