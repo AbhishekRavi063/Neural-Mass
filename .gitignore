@@ -8,9 +8,13 @@ dist/
 
 # Generated reports and plots
 *.png
-# ...but keep the curated result figures referenced in the READMEs
-!kcomplex-detector/figures/*.png
-!neural-mass-model/figures/*.png
+# ...but keep ONLY the curated result figures referenced in the READMEs
+# (explicit whitelist so ad-hoc benchmark plots don't get committed)
+!kcomplex-detector/figures/dreams_baseline_comparison.png
+!kcomplex-detector/figures/dreams_tp_fp_fn_waveforms.png
+!kcomplex-detector/figures/dreams_tp_fp_fn_counts.png
+!kcomplex-detector/figures/hmc_rate_comparison.png
+!neural-mass-model/figures/simulator_overview.png
 
 # Local datasets and archives
 data/
