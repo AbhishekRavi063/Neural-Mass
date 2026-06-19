@@ -1,6 +1,9 @@
-import mne
 import numpy as np
-from mne.datasets.sleep_physionet.age import fetch_data
+
+# `mne` is only needed for the PhysioNet loaders below; it is imported lazily
+# inside those functions so the rest of this module (e.g. generate_realistic_eeg)
+# works without the optional `mne` dependency installed.
+
 
 def load_sample_sleep_data(subject=0, recording=[1], channel="EEG Fpz-Cz"):
     """
@@ -16,6 +19,9 @@ def load_sample_sleep_data(subject=0, recording=[1], channel="EEG Fpz-Cz"):
         EEG channel to pick (default 'EEG Fpz-Cz').  Other common options:
         'EEG Pz-Oz' for parietal, 'EOG horizontal' for eye movements.
     """
+    import mne
+    from mne.datasets.sleep_physionet.age import fetch_data
+
     print(f"Fetching PhysioNet data for subject {subject}...")
     data_files = fetch_data(subjects=[subject], recording=recording)
 
@@ -46,6 +52,8 @@ def get_sleep_stage_data(raw, stage="Sleep stage 2", epoch_duration=30.0):
     epoch_duration : float
         Epoch window in seconds (default 30).
     """
+    import mne
+
     events, event_id = mne.events_from_annotations(raw, verbose=False)
 
     epochs = mne.Epochs(
