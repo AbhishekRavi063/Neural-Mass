@@ -9,17 +9,21 @@ from neural_mass.signal.event_detection import spindle_detection, mask_segments
 
 def test_fast_solver_speed_and_correctness():
     """Verify that the fast ODE solver executes at high speed (JIT active) and results are finite."""
+    # Warm up first so the timed run measures solver speed, not numba's one-off
+    # JIT compilation (which can take several seconds the very first call).
+    ThalamocorticalSleepModel(neuromodulator_level=0.6, seed=1).simulate(
+        seconds=2.0, sampling_frequency=200
+    )
+
     model = ThalamocorticalSleepModel(neuromodulator_level=0.6, seed=42)
-    
     t0 = time.time()
     out = model.simulate(seconds=50.0, sampling_frequency=200)
     elapsed = time.time() - t0
-    
-    # 50.0 seconds of simulation is 50,000 steps.
-    # On ordinary hardware, Numba JIT makes this execute in <0.2 seconds.
-    # Threshold kept generous so shared CI runners don't flake; the slow
-    # (un-JITed) path was several seconds, so this still catches regressions.
-    assert elapsed < 4.0, f"Simulation was too slow: took {elapsed:.3f} seconds"
+
+    # 50.0 seconds of simulation is 50,000 steps. With JIT already warmed up this
+    # runs in ~0.1 s; the generous 2.0 s bound still catches a JIT regression
+    # (the un-JITed path is several seconds) without flaking on loaded runners.
+    assert elapsed < 2.0, f"Simulation was too slow: took {elapsed:.3f} seconds"
     assert np.isfinite(out["eeg"]).all()
     assert len(out["eeg"]) == 50 * 200
 

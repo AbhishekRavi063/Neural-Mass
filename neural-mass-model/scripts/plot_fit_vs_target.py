@@ -44,9 +44,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", default="../data/dreams/DatabaseKcomplexes/excerpt1.txt")
     ap.add_argument("--sfreq", type=int, default=200)
-    ap.add_argument("--start-sec", type=float, default=600.0)
+    ap.add_argument("--start-sec", type=float, default=480.0,
+                    help="offset of a representative N2 window (strongly delta-dominant, modest spindle)")
     ap.add_argument("--fit-seconds", type=float, default=30.0)
-    ap.add_argument("--n-trials", type=int, default=80)
+    ap.add_argument("--n-trials", type=int, default=120)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--burn-sec", type=float, default=10.0)
     ap.add_argument("--sim-sec", type=float, default=60.0)
