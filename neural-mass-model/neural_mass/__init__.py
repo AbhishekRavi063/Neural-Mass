@@ -24,6 +24,7 @@ from neural_mass.models._models import JansenRitModel, ThalamocorticalSleepModel
 from neural_mass.inference.thalamocortical_fitting import (
     extract_profile_features,
     fit_thalamocortical_multi_objective,
+    fit_thalamocortical_spectral,
     fit_schizophrenia,
     fit_depression,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "SpatiotemporalThalamocorticalModel",
     "extract_profile_features",
     "fit_thalamocortical_multi_objective",
+    "fit_thalamocortical_spectral",
     "fit_schizophrenia",
     "fit_depression",
     "build_neuromodulator_schedule",

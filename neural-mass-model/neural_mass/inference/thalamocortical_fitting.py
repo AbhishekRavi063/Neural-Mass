@@ -568,3 +568,82 @@ def fit_depression(
     return fit_thalamocortical_multi_objective_templated(
         target_signal, custom_ranges, sfreq=sfreq, n_trials=n_trials, seed=seed
     )
+
+
+# Band definitions for the spectral-shape fit below.
+_SPECTRAL_BANDS = {"delta": (0.5, 4.0), "theta": (4.0, 8.0), "alpha": (8.0, 12.0), "beta": (12.0, 30.0)}
+
+# Ranges for the spectral fit. Two corrections vs the default multi-objective fit
+# (which collapsed onto the spindle resonance): a higher 1/f ceiling so the model
+# can match real EEG's broadband background, and a lower spindle-weight ceiling so
+# the ~14 Hz resonance stops dominating the output.
+_SPECTRAL_FIT_RANGES = dict(FIT_PARAMETER_RANGES)
+_SPECTRAL_FIT_RANGES["pink_noise_std"] = (0.01, 0.10)
+_SPECTRAL_FIT_RANGES["eeg_spindle_weight"] = (0.01, 0.12)
+
+
+def _band_profile(signal: NDArray, sfreq: float) -> NDArray[np.float64]:
+    """Normalized [delta, theta, alpha, beta] power profile (fractions of total)."""
+    powers = np.array([band_power(signal, sfreq, lo, hi) for lo, hi in _SPECTRAL_BANDS.values()])
+    total = powers.sum()
+    return powers / total if total > 0 else powers
+
+
+def fit_thalamocortical_spectral(
+    target_signal: NDArray,
+    sfreq: int = 200,
+    n_trials: int = 80,
+    seed: int = 7,
+    burn_seconds: float = 10.0,
+    sim_seconds: float = 40.0,
+) -> tuple[ThalamocorticalParameters, dict[str, float], float]:
+    """Fit the thalamocortical model to the *spectral shape* of a target signal.
+
+    Unlike ``fit_thalamocortical_multi_objective`` -- whose spectral term is easily
+    dominated by the stats/grapho objectives, causing the fit to collapse onto a
+    pure ~14 Hz spindle -- this routine optimizes the normalized delta/theta/alpha/
+    beta power profile directly, so the model reproduces a delta-dominant, broadband
+    sleep-EEG spectrum. A small penalty keeps a visible (non-dominant) spindle bump.
+
+    A burn-in is discarded inside the objective so the model's startup transient
+    does not pollute the spectral estimate.
+
+    Returns
+    -------
+    (best_parameters, fitted_band_profile, spectral_shape_error)
+    """
+    target_signal = np.asarray(target_signal, dtype=float)
+    target_profile = _band_profile(target_signal, sfreq)
+    base = ThalamocorticalParameters(noise_std=0.0)
+    burn = int(burn_seconds * sfreq)
+
+    def objective(trial: optuna.Trial) -> float:
+        values = asdict(base)
+        for name, (low, high) in _SPECTRAL_FIT_RANGES.items():
+            values[name] = trial.suggest_float(name, low, high)
+        values["noise_std"] = 0.0
+        params = ThalamocorticalParameters(**values)
+        try:
+            signal = simulate_eeg(params, burn_seconds + sim_seconds, sfreq, seed)[burn:]
+        except Exception:
+            return 1e6
+        profile = _band_profile(signal, sfreq)
+        shape_error = float(np.sum((profile - target_profile) ** 2))
+        # keep a visible but non-dominant spindle bump (sigma fraction in [0.03, 0.20])
+        sigma = band_power(signal, sfreq, 11.0, 16.0) / (band_power(signal, sfreq, 0.5, 30.0) + 1e-9)
+        spindle_penalty = 0.0 if 0.03 <= sigma <= 0.20 else 0.05
+        return shape_error + spindle_penalty
+
+    sampler = optuna.samplers.TPESampler(seed=seed)
+    study = optuna.create_study(direction="minimize", sampler=sampler)
+    study.optimize(objective, n_trials=n_trials)
+
+    values = asdict(base)
+    for name in _SPECTRAL_FIT_RANGES:
+        values[name] = study.best_params[name]
+    values["noise_std"] = ThalamocorticalParameters().noise_std
+    best_parameters = ThalamocorticalParameters(**values)
+
+    fitted = simulate_eeg(best_parameters, burn_seconds + sim_seconds, sfreq, seed)[burn:]
+    fitted_profile = dict(zip(_SPECTRAL_BANDS.keys(), _band_profile(fitted, sfreq)))
+    return best_parameters, fitted_profile, float(study.best_value)
