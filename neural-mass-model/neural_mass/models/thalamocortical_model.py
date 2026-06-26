@@ -49,6 +49,12 @@ class ThalamocorticalParameters:
     neuromodulator_level: float = 0.0         # 0=wake/REM (high ACh), 1=deep NREM (low ACh)
     neuromodulation_strength: float = 0.35    # coupling scale factor per unit neuromodulator
     pink_noise_std: float = 0.005             # 1/f aperiodic noise amplitude (default)
+    # Observation low-pass (synaptic / volume-conduction filtering)
+    eeg_lowpass_hz: float = 0.0               # 0 = disabled; >0 rolls off the EEG proxy
+    # White measurement-noise floor (electrode + EMG + broadband aperiodic), added
+    # AFTER the observation low-pass so it sets the flat high-frequency floor that
+    # real scalp EEG shows but that low-pass filtering alone would leave empty.
+    measurement_noise_std: float = 0.0        # 0 = disabled
 
 
 
@@ -553,6 +559,39 @@ class ThalamocorticalModel:
         }
 
 
+def _apply_observation_lowpass(
+    eeg: NDArray[np.float64], source_rate: float, cutoff_hz: float
+) -> NDArray[np.float64]:
+    """Zero-phase low-pass the EEG proxy at ``cutoff_hz`` (no-op when <= 0).
+
+    Models the synaptic/membrane + volume-conduction low-pass that real scalp EEG
+    undergoes but the ODE does not. Guards against cutoffs at/above Nyquist and
+    signals too short for the filter's edge padding.
+    """
+    if cutoff_hz <= 0:
+        return eeg
+    nyq = source_rate / 2.0
+    cutoff = min(cutoff_hz, nyq * 0.99)
+    if cutoff <= 0 or len(eeg) < 25:
+        return eeg
+    sos = butter(4, cutoff, fs=source_rate, output="sos")
+    return sosfiltfilt(sos, eeg)
+
+
+def _apply_measurement_floor(
+    eeg: NDArray[np.float64], std: float, rng: np.random.Generator
+) -> NDArray[np.float64]:
+    """Add a flat white measurement-noise floor (no-op when std <= 0).
+
+    Models electrode/EMG/broadband-aperiodic noise that real scalp EEG carries
+    independent of the neural source, setting the flat high-frequency floor that
+    the observation low-pass would otherwise leave empty.
+    """
+    if std <= 0:
+        return eeg
+    return eeg + rng.normal(0.0, std, size=len(eeg))
+
+
 def _anti_alias_and_downsample(
     raw: dict[str, NDArray[np.float64]],
     source_rate: float,
@@ -615,6 +654,13 @@ def simulate_thalamocortical_sleep(
     if pink_noise_std > 0:
         n = len(out["eeg"])
         out["eeg"] = out["eeg"] + _generate_pink_noise(n, pink_noise_std, rng)
+
+    out["eeg"] = _apply_observation_lowpass(
+        out["eeg"], sampling_frequency, model.parameters.eeg_lowpass_hz
+    )
+    out["eeg"] = _apply_measurement_floor(
+        out["eeg"], model.parameters.measurement_noise_std, rng
+    )
 
     return out
 

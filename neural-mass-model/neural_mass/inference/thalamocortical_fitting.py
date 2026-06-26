@@ -7,7 +7,12 @@ import optuna
 from numpy.typing import NDArray
 from scipy.signal import welch
 
-from neural_mass.models.thalamocortical_model import ThalamocorticalModel, ThalamocorticalParameters
+from neural_mass.models.thalamocortical_model import (
+    ThalamocorticalModel,
+    ThalamocorticalParameters,
+    _apply_observation_lowpass,
+    _apply_measurement_floor,
+)
 from neural_mass.signal.event_detection import spindle_detection, K_complex_detection, mask_segments
 from neural_mass.signal.kcomplex_features import generate_multitaper_kcomplex_candidates
 
@@ -103,10 +108,12 @@ def simulate_features(
     raw = model.simulate(seconds=seconds)
     stride = max(1, int(round((1 / parameters.dt) / sfreq)))
     eeg = raw["eeg"][::stride]
+    rng = np.random.default_rng(seed)
     if parameters.pink_noise_std > 0:
         from neural_mass.models.thalamocortical_model import _generate_pink_noise
-        rng = np.random.default_rng(seed)
         eeg = eeg + _generate_pink_noise(len(eeg), parameters.pink_noise_std, rng)
+    eeg = _apply_observation_lowpass(eeg, sfreq, parameters.eeg_lowpass_hz)
+    eeg = _apply_measurement_floor(eeg, parameters.measurement_noise_std, rng)
     return extract_window_features(eeg, sfreq)
 
 
@@ -117,10 +124,12 @@ def simulate_eeg(
     raw = model.simulate(seconds=seconds)
     stride = max(1, int(round((1 / parameters.dt) / sfreq)))
     eeg = raw["eeg"][::stride]
+    rng = np.random.default_rng(seed)
     if parameters.pink_noise_std > 0:
         from neural_mass.models.thalamocortical_model import _generate_pink_noise
-        rng = np.random.default_rng(seed)
         eeg = eeg + _generate_pink_noise(len(eeg), parameters.pink_noise_std, rng)
+    eeg = _apply_observation_lowpass(eeg, sfreq, parameters.eeg_lowpass_hz)
+    eeg = _apply_measurement_floor(eeg, parameters.measurement_noise_std, rng)
     return eeg
 
 
@@ -589,6 +598,14 @@ _SPECTRAL_OBJECTIVE_BANDS = {
 _SPECTRAL_FIT_RANGES = dict(FIT_PARAMETER_RANGES)
 _SPECTRAL_FIT_RANGES["pink_noise_std"] = (0.01, 0.10)
 _SPECTRAL_FIT_RANGES["eeg_spindle_weight"] = (0.01, 0.12)
+# Observation low-pass cutoff (Hz). The lower bound stays above the sigma band so
+# the spindle bump is preserved; the optimizer chooses how hard to roll off the
+# >16 Hz high-beta tail that the white-noise-driven ODE over-produces.
+_SPECTRAL_FIT_RANGES["eeg_lowpass_hz"] = (16.0, 35.0)
+# White measurement-noise floor. Real EEG has a flat broadband high-frequency
+# floor (electrode/EMG); without it the low-passed model plunges far below the
+# target above ~20 Hz. The optimizer sets the floor level to match.
+_SPECTRAL_FIT_RANGES["measurement_noise_std"] = (0.0, 0.03)
 
 
 def _band_profile(signal: NDArray, sfreq: float) -> NDArray[np.float64]:
@@ -603,6 +620,20 @@ def _objective_profile(signal: NDArray, sfreq: float) -> NDArray[np.float64]:
     powers = np.array([band_power(signal, sfreq, lo, hi) for lo, hi in _SPECTRAL_OBJECTIVE_BANDS.values()])
     total = powers.sum()
     return powers / total if total > 0 else powers
+
+
+def _log_band_vector(signal: NDArray, sfreq: float) -> NDArray[np.float64]:
+    """Mean-centered log10 fine-band power vector.
+
+    Comparing power in the *log* domain (matching the log-scale spectrum plot)
+    gives every band equal weight in dB terms, so the low-amplitude high-beta
+    bands are fit as carefully as the dominant delta band -- a plain linear-power
+    loss is swamped by delta and ignores the high-frequency tail. Mean-centering
+    removes the overall-amplitude normalization, leaving only spectral *shape*.
+    """
+    powers = np.array([band_power(signal, sfreq, lo, hi) for lo, hi in _SPECTRAL_OBJECTIVE_BANDS.values()])
+    logp = np.log10(powers + 1e-12)
+    return logp - logp.mean()
 
 
 def fit_thalamocortical_spectral(
@@ -629,7 +660,7 @@ def fit_thalamocortical_spectral(
     (best_parameters, fitted_band_profile, spectral_shape_error)
     """
     target_signal = np.asarray(target_signal, dtype=float)
-    target_profile = _objective_profile(target_signal, sfreq)
+    target_logvec = _log_band_vector(target_signal, sfreq)
     base = ThalamocorticalParameters(noise_std=0.0)
     burn = int(burn_seconds * sfreq)
 
@@ -643,11 +674,12 @@ def fit_thalamocortical_spectral(
             signal = simulate_eeg(params, burn_seconds + sim_seconds, sfreq, seed)[burn:]
         except Exception:
             return 1e6
-        # Match the full fine-band profile (incl. the spindle band and the split
-        # high-frequency tail), so the spindle bump matches the target's own level
-        # and excess >16 Hz power is penalized directly.
-        profile = _objective_profile(signal, sfreq)
-        return float(np.sum((profile - target_profile) ** 2))
+        # Match the full fine-band profile in the log domain (incl. the spindle
+        # band and the split high-frequency tail), so the spindle bump matches the
+        # target's own level and the high-beta floor is fit on the same dB footing
+        # as delta -- i.e. exactly as the log-scale spectrum plot shows it.
+        logvec = _log_band_vector(signal, sfreq)
+        return float(np.sum((logvec - target_logvec) ** 2))
 
     sampler = optuna.samplers.TPESampler(seed=seed)
     study = optuna.create_study(direction="minimize", sampler=sampler)

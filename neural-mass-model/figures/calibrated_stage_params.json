@@ -1,0 +1,22 @@
+{
+  "adaptation_strength": 0.5320403850983121,
+  "cortex_to_thalamus": 0.17146266706882135,
+  "thalamus_to_cortex": 0.2407492134320558,
+  "reticular_inhibition": 0.33464320120376223,
+  "background_drive": 0.3854037680111464,
+  "cortical_damping": 0.10019679708098059,
+  "spindle_damping": 0.47201295309844515,
+  "relay_to_reticular": 0.6676351402073821,
+  "spindle_feedback_gain": 4.24737091341032,
+  "cortical_excitation_scale": 15.824659659594266,
+  "eeg_spindle_weight": 0.05430314214791796,
+  "spindle_drive_offset": 0.5061043091303864,
+  "cortical_frequency": 1.1077479645697386,
+  "spindle_frequency": 13.044384630589823,
+  "adaptation_tau": 1.8405406497086763,
+  "eeg_relay_weight": 0.028824457298427204,
+  "neuromodulation_strength": 0.43133550748411753,
+  "pink_noise_std": 0.022446840045126946,
+  "eeg_lowpass_hz": 34.929048529922696,
+  "measurement_noise_std": 0.008816001693635143
+}

@@ -15,6 +15,7 @@ dist/
 !kcomplex-detector/figures/dreams_tp_fp_fn_counts.png
 !kcomplex-detector/figures/hmc_rate_comparison.png
 !neural-mass-model/figures/simulator_fit_vs_target.png
+!neural-mass-model/figures/stage_sweep.png
 
 # Local datasets and archives
 data/
